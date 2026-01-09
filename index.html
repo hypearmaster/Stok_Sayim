@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stok Sayım Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { background-color: #f8f9fa; padding: 20px 0; }
+      .container-main { max-width: 900px; margin: 0 auto; }
+      .card { border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      .btn-custom { width: 100%; margin-top: 10px; }
+      table { font-size: 0.9rem; }
+      .pill { font-size: .85rem; }
+      .sticky-actions { position: sticky; bottom: 0; background: #f8f9fa; padding-top: 12px; }
+      .highlight { background-color: yellow; font-weight: bold; padding: 0 2px; }
+      .search-item-code { font-family: monospace; font-weight: bold; color: #0d6efd; }
+      .search-keywords-info { 
+        background: #e7f3ff; 
+        border-left: 3px solid #0d6efd; 
+        padding: 8px 12px; 
+        margin-bottom: 15px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Toast -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100">
+      <div id="appToast" class="toast align-items-center text-bg-dark border-0" role="alert">
+        <div class="d-flex">
+          <div class="toast-body" id="toastMessage">Mesaj</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Düzenleme Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Kayıt Düzenle</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="editForm">
+              <input type="hidden" id="editId">
+
+              <div class="mb-3">
+                <label class="form-label">Malzeme Kodu</label>
+                <input type="text" class="form-control" id="editMalzemeKodu" readonly>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Malzeme İsmi</label>
+                <input type="text" class="form-control text-uppercase" id="editMalzemeIsmi" required>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Sayım</label>
+                <input type="number" class="form-control" id="editSayim" min="0" required>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Özel Kod</label>
+                <select class="form-select" id="editOzelKod">
+                  <option value="">Seçiniz</option>
+                  <option value="D">D</option>
+                  <option value="S">S</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Grup Kodu</label>
+                <select id="editGrupKodu" class="form-select" required></select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Marka Kodu</label>
+                <select id="editMarkaKodu" class="form-select" required></select>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+            <button type="button" class="btn btn-primary" onclick="kaydetDuzenleme()">Kaydet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arama Modal -->
+    <div class="modal fade" id="searchModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🔍 Gelişmiş Ürün Arama</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <input type="text" class="form-control form-control-lg" id="searchInput" 
+                placeholder="Kelime kelime ara"> 
+            </div>
+            <div id="searchResults">
+              <p class="text-muted">Arama yapmak için yukarıdaki alana yaz...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-main">
+      <div class="card p-4 mb-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <h2 class="m-0 text-primary">Stok Sayım Sistemi</h2>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge text-bg-secondary pill" id="sessionBadge">Oturum: ...</span>
+            <span class="badge text-bg-success pill" id="statusBadge">Durum: ...</span>
+            <span class="badge text-bg-warning pill" id="autoSaveBadge" style="display: none;">
+              <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+              Auto-Save
+            </span>
+          </div>
+        </div>
+
+        <hr class="my-3" />
+
+        <form id="stokForm" class="row g-3">
+          <div class="col-md-4">
+            <label for="malzemeKodu" class="form-label">Malzeme Kodu</label>
+            <input type="text" class="form-control text-uppercase" id="malzemeKodu" placeholder="ÖRN: MAL001" required>
+          </div>
+
+          <div class="col-md-5">
+            <label for="malzemeIsmi" class="form-label">Malzeme İsmi</label>
+            <div class="input-group">
+              <input type="text" class="form-control text-uppercase" id="malzemeIsmi" placeholder="ÖRN: Vida M8" required>
+              <button class="btn btn-outline-secondary" type="button" onclick="aramaModalAc()">
+                🔍 Ara
+              </button>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <label for="malzemeSayimi" class="form-label">Malzeme Sayımı</label>
+            <input type="number" class="form-control" id="malzemeSayimi" placeholder="Adet" min="0" required>
+          </div>
+
+          <div class="col-md-4">
+            <label for="ozelKod" class="form-label">Özel Kod</label>
+            <select class="form-select" id="ozelKod">
+              <option value="">Seçiniz</option>
+              <option value="D">D</option>
+              <option value="S">S</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Grup Kodu</label>
+            <select id="grupKodu" class="form-select"></select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Marka Kodu</label>
+            <select id="markaKodu" class="form-select"></select>
+          </div>
+
+          <div class="col-12">
+            <button type="button" class="btn btn-success" id="btnAdd" onclick="manuelEkle()">Kayıt Ekle</button>
+            <small class="text-secondary ms-2">
+              <span class="badge bg-info text-dark">🤖 AUTO-SAVE AKTİF</span> 
+              Tüm alanlar dolduğunda <strong>5 saniyede</strong> otomatik kaydeder.
+              <br><span class="text-warning">⚠️ İsim, Özel Kod, Grup ve Marka dolu olmalı</span>
+            </small>
+          </div>
+        </form>
+
+        <hr class="my-4">
+
+        <h5>⚡ Hızlı Stok Güncelle</h5>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <input type="text" id="quickMalzemeKodu" class="form-control" placeholder="Ürün Kodu">
+          </div>
+          <div class="col-md-4">
+            <input type="text" id="quickMalzemeIsmi" class="form-control" placeholder="Ürün Adı" readonly style="background-color: #f0f0f0;">
+          </div>
+          <div class="col-md-2">
+            <input type="number" id="quickSayim" class="form-control" placeholder="Kaç adet">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-warning w-100" onclick="quickAdd()">Ekle</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <h5 class="m-0">Kayıtlı Malzemeler</h5>
+          <div class="text-secondary">Toplam: <span id="toplamAdet">0</span> kayıt</div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-striped table-hover align-middle">
+            <thead class="table-dark">
+              <tr>
+                <th>Malz. Kodu</th>
+                <th>Malzeme İsmi</th>
+                <th>Sayım</th>
+                <th>Özel Kod</th>
+                <th>Grup Kodu</th>
+                <th>Marka Kodu</th>
+                <th style="width:150px;">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="stokBody"></tbody>
+          </table>
+        </div>
+
+        <div class="sticky-actions">
+          <div class="row g-2">
+            <div class="col-md-12">
+              <button class="btn btn-primary btn-custom" onclick="serverExcel()">Excel/CSV İndir (Sunucu)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const API_URL = 'http://' + location.hostname + '/stok_sayim/api.php';
+      let sessionId = null;
+      let sessionStatus = 'open';
+      let veriler = [];
+      let editModal = null;
+      let searchModal = null;
+      let searchDebounce = null;
+      let lastSearchKeywords = [];
+
+      // ===== GRUP VE MARKA LİSTELERİ =====
+      const GRUPLAR = [
+        { code: '01', name: 'BAYAN ÇANTASI' },
+        { code: '02', name: 'BAYAN SIRT ÇANTASI' },
+        { code: '03', name: 'ERKEK ÇANTASI' },
+        { code: '04', name: 'ERKEK SIRT ÇANTASI' },
+        { code: '05', name: 'ERKEK CÜZDAN' },
+        { code: '06', name: 'BAYAN CÜZDAN' },
+        { code: '07', name: 'AKSESUAR' },
+        { code: '08', name: 'ASKI' },
+        { code: '09', name: 'VALİZ' },
+        { code: '10', name: 'İTHAL' },
+        { code: '11', name: 'SEYAHAT' },
+        { code: '12', name: 'EVRAK' },
+        { code: '13', name: 'KARTLIK' },
+        { code: '14', name: 'TERLİK' },
+        { code: '15', name: 'PLAJ' },
+        { code: '16', name: 'OUTLET' },
+        { code: '17', name: 'KÖPEK YATAĞI' }
+      ];
+
+      const MARKALAR = [
+        { code: '01', name: 'LV' },
+        { code: '02', name: 'YSL' },
+        { code: '03', name: 'GUCCI' },
+        { code: '04', name: 'CHANEL' },
+        { code: '05', name: 'DIOR' },
+        { code: '06', name: 'BOTTEGA' },
+        { code: '07', name: 'MONTBLANC' },
+        { code: '08', name: 'MK' },
+        { code: '09', name: 'CK' },
+        { code: '10', name: 'STELLA' },
+        { code: '11', name: 'JAKAMOS' },
+        { code: '12', name: 'PRADA' },
+        { code: '13', name: 'VALENTINO' },
+        { code: '14', name: 'HERMES' },
+        { code: '15', name: 'GIVENCHY' },
+        { code: '16', name: 'CELIN' },
+        { code: '17', name: 'BURBERRY' },
+        { code: '18', name: 'MULBERRY' },
+        { code: '19', name: 'BALLENCIAGA' },
+        { code: '20', name: 'KARL' },
+        { code: '21', name: 'COACH' },
+        { code: '22', name: 'DIESEL' },
+        { code: '23', name: 'GOYARD' },
+        { code: '24', name: 'MARC JACOBS' },
+        { code: '25', name: 'TOMMY' },
+        { code: '26', name: 'CHLOE' },
+        { code: '27', name: 'MCM' },
+        { code: '28', name: 'GUESS' },
+        { code: '29', name: 'FENDI' },
+        { code: '30', name: 'LONGCHAMP' },
+        { code: '31', name: 'ZADIC' },
+        { code: '32', name: 'VERSACE' },
+        { code: '33', name: 'MONCLER' },
+        { code: '34', name: 'TODS' },
+        { code: '35', name: 'LOWE' },
+        { code: '36', name: 'MIU MIU' },
+        { code: '37', name: 'AKSESUAR' },
+        { code: '38', name: 'BONHEUR' },
+        { code: '39', name: 'BOSS & ARMANI' },
+        { code: '40', name: 'THE ROW' },
+        { code: '41', name: 'PINKO' },
+        { code: '42', name: 'KENZO' },
+        { code: '43', name: 'POLENE' },
+        { code: '44', name: 'PLAJ' },
+        { code: '45', name: 'PALM ANGELS' }
+      ];
+
+      // ===== API CALL =====
+      async function api(action, payload = null) {
+        const url = API_URL + '?action=' + encodeURIComponent(action);
+        const opts = payload ? {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        } : { method: 'GET' };
+
+        const res = await fetch(url, opts);
+        const text = await res.text();
+        console.log('API raw:', text);
+
+        const data = JSON.parse(text);
+        if (!res.ok || data.success === false) throw new Error(data.message || 'İstek başarısız');
+        return data;
+      }
+
+      // ===== BOOT =====
+      async function boot() {
+        try {
+          const s = await api('session');
+          sessionId = s.data.id;
+          sessionStatus = s.data.status;
+          document.getElementById('sessionBadge').textContent = 'Oturum: #' + sessionId;
+          document.getElementById('statusBadge').textContent = 'Durum: ' + (sessionStatus === 'open' ? 'Açık' : 'Kilitli');
+          document.getElementById('statusBadge').className = 'badge pill ' + (sessionStatus === 'open' ? 'text-bg-success' : 'text-bg-danger');
+
+          toggleLockUI(sessionStatus !== 'open');
+          await listele();
+        } catch (e) {
+          toast(e.message, 'danger');
+        }
+      }
+
+      function toggleLockUI(isLocked) {
+        document.getElementById('btnAdd').disabled = isLocked;
+        ['malzemeKodu', 'malzemeIsmi', 'malzemeSayimi', 'ozelKod', 'grupKodu', 'markaKodu'].forEach(id => {
+          document.getElementById(id).disabled = isLocked;
+        });
+      }
+
+      // ===== LİSTELE =====
+      async function listele() {
+        const r = await api('list');
+        sessionId = r.session_id;
+        veriler = (r.data || []).map(x => ({
+          id: x.id,
+          malzemeKodu: x.malzeme_kodu,
+          malzemeIsmi: x.malzeme_ismi,
+          malzemeSayimi: x.sayim,
+          ozelKod: x.ozel_kod || '',
+          grupKodu: x.grup_kodu,
+          markaKodu: x.marka_kodu
+        }));
+        tabloOlustur();
+      }
+
+      // ===== REF'DEN BİLGİ ÇEK =====
+      async function refGetByCode(code) {
+        try {
+          const url = API_URL + '?action=ref_get&code=' + encodeURIComponent(code);
+          const res = await fetch(url);
+          const text = await res.text();
+          console.log('Ref API response:', text);
+          
+          const json = JSON.parse(text);
+          if (!res.ok || json.success === false) {
+            throw new Error(json.message || 'Ref listesinde bulunamadı');
+          }
+          return json.data;
+        } catch (e) {
+          console.error('Ref fetch error:', e);
+          throw e;
+        }
+      }
+
+      // ===== MALZEME KODU YAZILINCA OTOMATİK DOLDUR =====
+      let debounceTimer = null;
+      let autoSaveTimer = null;
+      let lastMalzemeKodu = '';
+
+      document.getElementById('malzemeKodu').addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const code = document.getElementById('malzemeKodu').value.trim();
+          if (!code) {
+            document.getElementById('malzemeIsmi').value = '';
+            document.getElementById('ozelKod').value = '';
+            document.getElementById('grupKodu').value = '';
+            document.getElementById('markaKodu').value = '';
+            return;
+          }
+
+          try {
+            const d = await refGetByCode(code);
+            
+            console.log('📦 Ref verisi:', d);
+            
+            document.getElementById('malzemeIsmi').value = d.malzeme_aciklamasi || '';
+            document.getElementById('ozelKod').value = d.ozel_kod || '';
+            
+            const grupKodu = (d.grup_kodu || '').toString();
+            document.getElementById('grupKodu').value = grupKodu;
+            console.log('✅ Grup kodu set edildi:', grupKodu);
+
+            const markaKodu = (d.marka_kodu || '').toString();
+            document.getElementById('markaKodu').value = markaKodu;
+            console.log('✅ Marka kodu set edildi:', markaKodu);
+
+            toast('Ürün ref listesinde bulundu', 'success');
+
+          } catch (e) {
+            console.log('⚠️ Ref bulunamadı:', e.message);
+            document.getElementById('malzemeIsmi').value = '';
+            document.getElementById('ozelKod').value = '';
+            document.getElementById('grupKodu').value = '';
+            document.getElementById('markaKodu').value = '';
+          }
+        }, 300);
+      });
+
+      // ✅ SAYIM YAZILINCA AUTO-SAVE BAŞLAT
+      document.getElementById('malzemeSayimi').addEventListener('input', () => {
+        const sayim = document.getElementById('malzemeSayimi').value.trim();
+        
+        if (sayim) {
+          const code = document.getElementById('malzemeKodu').value.trim();
+          const isim = document.getElementById('malzemeIsmi').value.trim();
+          const ozelKod = document.getElementById('ozelKod').value.trim();
+          const grupKodu = document.getElementById('grupKodu').value.trim();
+          const markaKodu = document.getElementById('markaKodu').value.trim();
+          
+          console.log('🎯 Sayım girildi, mevcut alanlar:', {
+            code, isim, sayim, ozelKod, grupKodu, markaKodu
+          });
+          
+          startAutoSave();
+        } else {
+          if (autoSaveTimer) {
+            clearInterval(autoSaveTimer);
+            autoSaveTimer = null;
+            document.getElementById('autoSaveBadge').style.display = 'none';
+            console.log('🛑 Sayım silindi, auto-save durduruldu');
+          }
+        }
+      });
+
+      // ===== AUTO-SAVE FONKSİYONU =====
+      function startAutoSave() {
+        if (autoSaveTimer) {
+          clearInterval(autoSaveTimer);
+        }
+
+        document.getElementById('autoSaveBadge').style.display = 'inline-block';
+
+        autoSaveTimer = setInterval(async () => {
+          const code = document.getElementById('malzemeKodu').value.trim();
+          const isim = document.getElementById('malzemeIsmi').value.trim();
+          const sayim = document.getElementById('malzemeSayimi').value.trim();
+          const ozelKod = document.getElementById('ozelKod').value.trim();
+          const grupKodu = document.getElementById('grupKodu').value.trim();
+          const markaKodu = document.getElementById('markaKodu').value.trim();
+
+          console.log('🔍 Auto-save kontrol:', {
+            code, isim, sayim, ozelKod, grupKodu, markaKodu
+          });
+
+          if (!code || !sayim) {
+            console.log('⏸️ Auto-save: Kod veya sayım boş, bekleniyor...');
+            return;
+          }
+
+          if (!isim || !grupKodu || !markaKodu || !ozelKod) {
+            console.log('🛑 Auto-save: Bazı alanlar boş, tamamen durduruluyor. MANUEL EKLE kullan.');
+            document.getElementById('autoSaveBadge').style.display = 'none';
+            clearInterval(autoSaveTimer);
+            autoSaveTimer = null;
+            return;
+          }
+
+          if (code === lastMalzemeKodu) {
+            console.log('⏭️ Auto-save: Aynı kod zaten eklendi, atlanıyor...');
+            return;
+          }
+
+          console.log('💾 Auto-save: Kayıt deneniyor...', code);
+
+          try {
+            await ekleKayit();
+            lastMalzemeKodu = code;
+            console.log('✅ Auto-save: Başarılı!');
+            
+            document.getElementById('malzemeKodu').value = '';
+            document.getElementById('malzemeIsmi').value = '';
+            document.getElementById('malzemeSayimi').value = '';
+            document.getElementById('ozelKod').value = '';
+            document.getElementById('grupKodu').value = '';
+            document.getElementById('markaKodu').value = '';
+            
+            document.getElementById('autoSaveBadge').style.display = 'none';
+            lastMalzemeKodu = '';
+            document.getElementById('malzemeKodu').focus();
+
+          } catch (e) {
+            console.log('❌ Auto-save hatası:', e.message);
+            document.getElementById('autoSaveBadge').style.display = 'none';
+            clearInterval(autoSaveTimer);
+            autoSaveTimer = null;
+          }
+        }, 5000);
+      }
+
+      window.addEventListener('beforeunload', () => {
+        if (autoSaveTimer) {
+          clearInterval(autoSaveTimer);
+        }
+      });
+
+      // ===== KAYIT EKLE =====
+      async function ekleKayit(showToast = false) {
+        const kayit = {
+          malzemeKodu: document.getElementById('malzemeKodu').value.trim().toUpperCase(),
+          malzemeIsmi: document.getElementById('malzemeIsmi').value.trim().toUpperCase(),
+          malzemeSayimi: document.getElementById('malzemeSayimi').value,
+          ozelKod: document.getElementById('ozelKod').value.trim(),
+          grupKodu: document.getElementById('grupKodu').value.trim(),
+          markaKodu: document.getElementById('markaKodu').value.trim()
+        };
+
+        if (!kayit.malzemeKodu || !kayit.malzemeSayimi) {
+          if (showToast) toast('Malzeme kodu ve sayım gerekli', 'danger');
+          throw new Error('Malzeme kodu ve sayım gerekli');
+        }
+
+        if (!kayit.malzemeIsmi) {
+          if (showToast) toast('Malzeme ismi gerekli', 'danger');
+          throw new Error('Malzeme ismi gerekli');
+        }
+
+        if (!kayit.grupKodu) {
+          if (showToast) toast('Grup kodu gerekli', 'danger');
+          throw new Error('Grup kodu gerekli');
+        }
+
+        if (!kayit.markaKodu) {
+          if (showToast) toast('Marka kodu gerekli', 'danger');
+          throw new Error('Marka kodu gerekli');
+        }
+
+        if (!kayit.ozelKod) {
+          if (showToast) toast('Özel kod gerekli (D veya S)', 'danger');
+          throw new Error('Özel kod gerekli');
+        }
+
+        try {
+          await api('add', kayit);
+          await listele();
+          if (showToast) toast('Kayıt başarıyla eklendi', 'success');
+        } catch (e) {
+          if (showToast) toast(e.message, 'danger');
+          throw e;
+        }
+      }
+
+      async function manuelEkle() {
+        try {
+          await ekleKayit(true);
+          document.getElementById('stokForm').reset();
+        } catch (e) {
+          // Hata zaten toast'ta gösterildi
+        }
+      }
+
+      // ===== HIZLI EKLE =====
+      let quickDebounce = null;
+
+      document.getElementById('quickMalzemeKodu').addEventListener('input', () => {
+        clearTimeout(quickDebounce);
+        quickDebounce = setTimeout(async () => {
+          const kod = document.getElementById('quickMalzemeKodu').value.trim();
+          
+          if (!kod) {
+            document.getElementById('quickMalzemeIsmi').value = '';
+            return;
+          }
+
+          const mevcut = veriler.find(v => v.malzemeKodu.toUpperCase() === kod.toUpperCase());
+          if (mevcut) {
+            document.getElementById('quickMalzemeIsmi').value = mevcut.malzemeIsmi;
+            console.log('✅ Ürün bulundu:', mevcut.malzemeIsmi);
+            return;
+          }
+
+          try {
+            const d = await refGetByCode(kod);
+            document.getElementById('quickMalzemeIsmi').value = d.malzeme_aciklamasi || '';
+            console.log('✅ Ref\'den bulundu:', d.malzeme_aciklamasi);
+          } catch (e) {
+            document.getElementById('quickMalzemeIsmi').value = '❌ Ürün bulunamadı';
+            console.log('⚠️ Ürün bulunamadı');
+          }
+        }, 300);
+      });
+
+      async function quickAdd() {
+        const malzemeKodu = document.getElementById('quickMalzemeKodu').value.trim();
+        const eklenecekSayim = document.getElementById('quickSayim').value;
+        const malzemeIsmi = document.getElementById('quickMalzemeIsmi').value;
+
+        if (!malzemeKodu || !eklenecekSayim) {
+          toast('Ürün kodu ve sayı zorunlu', 'danger');
+          return;
+        }
+
+        if (malzemeIsmi === '❌ Ürün bulunamadı' || !malzemeIsmi) {
+          toast('Bu ürün kodu kayıtlarda yok. Önce normal ekleme ile ekle.', 'warning');
+          return;
+        }
+
+        try {
+          const res = await api('quick_add', { malzemeKodu, eklenecekSayim });
+          toast(`Stok güncellendi. Yeni sayı: ${res.yeni_sayim}`, 'success');
+          document.getElementById('quickMalzemeKodu').value = '';
+          document.getElementById('quickMalzemeIsmi').value = '';
+          document.getElementById('quickSayim').value = '';
+          await listele();
+        } catch (e) {
+          toast(e.message, 'danger');
+        }
+      }
+
+      // ===== DROPDOWN İNİT =====
+      function fillSelect(selectId, items) {
+        const sel = document.getElementById(selectId);
+        sel.innerHTML = '<option value="">Seçiniz</option>' + items.map(i =>
+          `<option value="${i.code}">${i.code} - ${i.name}</option>`
+        ).join('');
+      }
+
+      function initDropdowns() {
+        fillSelect('grupKodu', GRUPLAR);
+        fillSelect('markaKodu', MARKALAR);
+        fillSelect('editGrupKodu', GRUPLAR);
+        fillSelect('editMarkaKodu', MARKALAR);
+      }
+
+      // ===== TABLO OLUŞTUR =====
+      function tabloOlustur() {
+        const tbody = document.getElementById('stokBody');
+        tbody.innerHTML = '';
+        veriler.forEach((item) => {
+          const satir = document.createElement('tr');
+          satir.innerHTML = `
+            <td>${escapeHtml(item.malzemeKodu.toUpperCase())}</td>
+            <td>${escapeHtml(item.malzemeIsmi.toUpperCase())}</td>
+            <td>${escapeHtml(String(item.malzemeSayimi))}</td>
+            <td>${escapeHtml(item.ozelKod || '')}</td>
+            <td>${escapeHtml(item.grupKodu)}</td>
+            <td>${escapeHtml(item.markaKodu)}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="duzenle(${item.id})">Düzenle</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="sil(${item.id})">Sil</button>
+            </td>
+          `;
+          tbody.appendChild(satir);
+        });
+        document.getElementById('toplamAdet').textContent = String(veriler.length);
+      }
+
+      // ===== DÜZENLE =====
+      function duzenle(id) {
+        const item = veriler.find(v => v.id === id);
+        if (!item) return;
+
+        document.getElementById('editId').value = item.id;
+        document.getElementById('editMalzemeKodu').value = item.malzemeKodu;
+        document.getElementById('editMalzemeIsmi').value = item.malzemeIsmi;
+        document.getElementById('editSayim').value = item.malzemeSayimi;
+        document.getElementById('editOzelKod').value = item.ozelKod || '';
+        document.getElementById('editGrupKodu').value = item.grupKodu;
+        document.getElementById('editMarkaKodu').value = item.markaKodu;
+
+        editModal.show();
+      }
+
+      async function kaydetDuzenleme() {
+        const data = {
+          id: parseInt(document.getElementById('editId').value),
+          malzemeIsmi: document.getElementById('editMalzemeIsmi').value.trim(),
+          malzemeSayimi: document.getElementById('editSayim').value,
+          ozelKod: document.getElementById('editOzelKod').value.trim(),
+          grupKodu: document.getElementById('editGrupKodu').value.trim(),
+          markaKodu: document.getElementById('editMarkaKodu').value.trim()
+        };
+
+        try {
+          await api('edit', data);
+          editModal.hide();
+          await listele();
+          toast('Kayıt güncellendi', 'success');
+        } catch (e) {
+          toast(e.message, 'danger');
+        }
+      }
+
+      // ===== SİL =====
+      async function sil(id) {
+        if (!confirm('Silinsin mi?')) return;
+        try {
+          await api('delete', { id });
+          await listele();
+          toast('Silindi', 'success');
+        } catch (e) {
+          toast(e.message, 'danger');
+        }
+      }
+
+      // ===== EXCEL İNDİR =====
+      function serverExcel() {
+        const url = 'http://' + location.hostname + '/stok_sayim/export_csv.php?session_id=' + encodeURIComponent(sessionId || '');
+        window.open(url, '_blank');
+      }
+
+      // ===== KELİME VURGULAMA FONKSİYONU =====
+      function highlightKeywords(text, keywords) {
+        if (!keywords || keywords.length === 0) return escapeHtml(text);
+        
+        let result = escapeHtml(text);
+        keywords.forEach(keyword => {
+          const regex = new RegExp(`(${keyword})`, 'gi');
+          result = result.replace(regex, '<span class="highlight">$1</span>');
+        });
+        return result;
+      }
+
+      // ===== ARAMA MODAL =====
+      function aramaModalAc() {
+        const currentText = document.getElementById('malzemeIsmi').value.trim();
+        document.getElementById('searchInput').value = currentText;
+        searchModal.show();
+        
+        if (currentText) {
+          setTimeout(aramaYap, 100);
+        }
+      }
+
+      async function aramaYap() {
+        const query = document.getElementById('searchInput').value.trim();
+        const resultsDiv = document.getElementById('searchResults');
+
+        if (!query) {
+          resultsDiv.innerHTML = '<p class="text-muted">Arama yapmak için yukarıdaki alana yaz...</p>';
+          return;
+        }
+
+        if (query.length < 2) {
+          resultsDiv.innerHTML = '<p class="text-muted">En az 2 karakter yaz...</p>';
+          return;
+        }
+
+        resultsDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><p>Aranıyor...</p></div>';
+
+        try {
+          const url = API_URL + '?action=ref_search&q=' + encodeURIComponent(query);
+          const res = await fetch(url);
+          const json = await res.json();
+
+          if (!res.ok || !json.success) {
+            throw new Error(json.message || 'Arama başarısız');
+          }
+
+          const items = json.data || [];
+          lastSearchKeywords = json.keywords || [];
+
+          if (items.length === 0) {
+            resultsDiv.innerHTML = '<p class="text-warning">❌ Sonuç bulunamadı</p>';
+            return;
+          }
+
+          let html = `
+            <div class="search-keywords-info">
+              <strong>🔍 Aranan kelimeler:</strong> ${lastSearchKeywords.map(k => `<code>${k}</code>`).join(', ')}
+              <br><small class="text-muted">Tüm kelimeler içeren ${items.length} sonuç bulundu (sıra önemsiz)</small>
+            </div>
+          `;
+          
+          html += '<div class="list-group" style="max-height: 400px; overflow-y: auto;">';
+
+          items.forEach(item => {
+            const grupName = GRUPLAR.find(g => g.code === item.grup_kodu)?.name || '?';
+            const markaName = MARKALAR.find(m => m.code === item.marka_kodu)?.name || '?';
+
+            html += `
+              <button type="button" class="list-group-item list-group-item-action" onclick='secUrun(${JSON.stringify(item)})'>
+                <div class="d-flex w-100 justify-content-between">
+                  <h6 class="mb-1 search-item-code">${escapeHtml(item.malzeme_kodu)}</h6>
+                  <small class="text-muted">${escapeHtml(item.ozel_kod || '-')}</small>
+                </div>
+                <p class="mb-1"><strong>${highlightKeywords(item.malzeme_aciklamasi, lastSearchKeywords)}</strong></p>
+                <small>Grup: ${escapeHtml(grupName)} (${item.grup_kodu}) | Marka: ${escapeHtml(markaName)} (${item.marka_kodu})</small>
+              </button>
+            `;
+          });
+
+          html += '</div>';
+          resultsDiv.innerHTML = html;
+
+        } catch (e) {
+          resultsDiv.innerHTML = `<p class="text-danger">❌ Hata: ${escapeHtml(e.message)}</p>`;
+        }
+      }
+
+      function secUrun(item) {
+        document.getElementById('malzemeKodu').value = item.malzeme_kodu;
+        document.getElementById('malzemeIsmi').value = item.malzeme_aciklamasi;
+        document.getElementById('ozelKod').value = item.ozel_kod || '';
+        document.getElementById('grupKodu').value = item.grup_kodu;
+        document.getElementById('markaKodu').value = item.marka_kodu;
+
+        searchModal.hide();
+        document.getElementById('malzemeSayimi').focus();
+
+        toast('Ürün seçildi, sayım gir', 'success');
+      }
+
+      // ===== TOAST =====
+      let toastInstance = null;
+      function toast(message, type = 'dark') {
+        const toastEl = document.getElementById('appToast');
+        const toastMsg = document.getElementById('toastMessage');
+
+        toastMsg.textContent = message;
+        toastEl.className = `toast align-items-center text-bg-${type} border-0`;
+
+        if (!toastInstance) {
+          toastInstance = new bootstrap.Toast(toastEl, { delay: 2500, autohide: true });
+        }
+
+        toastInstance.show();
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      // ===== SAYFA YÜKLENME =====
+      document.addEventListener('DOMContentLoaded', () => {
+        editModal = new bootstrap.Modal(document.getElementById('editModal'));
+        searchModal = new bootstrap.Modal(document.getElementById('searchModal'));
+        initDropdowns();
+        boot();
+
+        document.getElementById('searchInput').addEventListener('input', () => {
+          clearTimeout(searchDebounce);
+          searchDebounce = setTimeout(aramaYap, 300);
+        });
+      });
+    </script>
+  </body>
+</html>
