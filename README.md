@@ -19,9 +19,11 @@
 - api.php (JSON API)
 - export_csv.php (Excel uyumlu CSV)
 - db.php (PDO bağlantı)
+
 - helpers.php (yardımcılar)
 - schema.sql (DB şeması)
 
 
 ref_items datası logo programı kullanıyorsanız oradaki stoklarıda çekiyor hepsini karşınıza getiriyor.
 stok kodunu girince ref_items datasından malzeme açıklaması malzeme özel kod grup kodu vs varsa hepsini çekiyorsadece stok sayım haricinde eğer hepsi dolu bir şekilde gelip stok sayımı girdikten 5sn sonra auto ekliyor. 
+<img width="1018" height="944" alt="stok_sayım" src="https://github.com/user-attachments/assets/569c0b15-12e0-4fa1-861a-c75ea8714654" />
